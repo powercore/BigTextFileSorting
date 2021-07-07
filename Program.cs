@@ -5,6 +5,7 @@ using System.IO;
 using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Threading.Tasks;
 
 namespace BigTextFileSorting
@@ -15,12 +16,13 @@ namespace BigTextFileSorting
         private const string processingPath = "/Users/Aquateca/tmp/";
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
+        private const int bufferSize = 10000;
 
         // internal class for sorting things
         private class DataLine
         {
             public long Number { get; set; }
-            public string Value {get; set; }
+            public string Value { get; set; }
 
             public DataLine(long num, string val)
             {
@@ -28,7 +30,7 @@ namespace BigTextFileSorting
                 Value = val;
             }
         }
-        
+
         // sorter for DataLine objects
         private class MyDataLineComparer : IComparer<DataLine>
         {
@@ -38,11 +40,12 @@ namespace BigTextFileSorting
                 if (ReferenceEquals(null, y)) return 1;
                 if (ReferenceEquals(null, x)) return -1;
                 var numberComparison = x.Number.CompareTo(y.Number);
-                if (numberComparison != 0) return numberComparison;
-                return string.Compare(x.Value, y.Value, StringComparison.Ordinal);
+                return numberComparison != 0
+                    ? numberComparison
+                    : string.Compare(x.Value, y.Value, StringComparison.Ordinal);
             }
         }
-        
+
         // Helper
         private static bool Exists(this object obj)
         {
@@ -50,7 +53,7 @@ namespace BigTextFileSorting
         }
 
         // Test file generator
-        private static void GenerateTestFile(long linesCount = 10000000)
+        private static void GenerateTestFile(long linesCount = 1000000)
         {
             // get words for generation
             string[] words = File.ReadAllLines("coco.names");
@@ -116,12 +119,12 @@ namespace BigTextFileSorting
 
             // vars for statistic
             var st = DateTime.Now;
-            var starttime = st;
+            var starttime = DateTime.Now;
             long linesCount = 0;
             long linesCountBefore = 0;
 
             // preprocessing sorting dictionary
-            var keywords = new HashSet<string>();
+            var keywords = new Dictionary<string, string>();
 
             while (!file.EndOfStream)
             {
@@ -137,19 +140,20 @@ namespace BigTextFileSorting
                 int idx = parts[1].IndexOf(' ');
                 string keyword = (idx != -1) ? parts[1][..idx] : parts[1];
 
-                if (keywords.Contains(keyword))
+                if (keywords.ContainsKey(keyword))
                 {
-                    using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
-                    tempfile.WriteLine(line);
-                    tempfile.Close();
+                    // using dictionary's value as a buffer
+                    keywords[keyword] += line + "\n";
+                    if (keywords[keyword].Length > bufferSize)
+                    {
+                        using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
+                        tempfile.Write(keywords[keyword]);
+                        keywords[keyword] = "";
+                        tempfile.Close();
+                    }
                 }
                 else
-                {
-                    keywords.Add(keyword);
-                    using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
-                    tempfile.WriteLine(line);
-                    tempfile.Close();
-                }
+                    keywords.Add(keyword, line + "\n");
 
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
@@ -159,45 +163,55 @@ namespace BigTextFileSorting
                 linesCountBefore = linesCount;
             }
 
+            // flush all buffers
+            foreach (var (key, value) in keywords)
+            {
+                if (value.Length <= 0) continue;
+                using var tempfile = new StreamWriter(processingPath + $"{key}", true);
+                tempfile.Write(value);
+                tempfile.Close();
+            }
+
             file.Close();
 
+            System.Console.WriteLine();
             System.Console.WriteLine("Stage 2 - sorting temp files...");
 
             // sorting dictionary
-            var tempFilesList = new List<string>(keywords.OrderBy(k => k));
+            var tempFilesList = new List<string>(keywords.OrderBy(k => k.Key).Select(x=>x.Key));
             using var outputFile = new StreamWriter(workPath + resultFileName);
 
             // sorting every temp file
             for (int i = 0; i < tempFilesList.Count; i++)
             {
-                
                 var lines = File.ReadAllLines(processingPath + tempFilesList[i]);
-                
+
                 var tempList = new List<DataLine>();
                 for (int j = 0; j < lines.Length; j++)
                 {
+                    if (lines[j].Length == 0) continue;
                     var parts = lines[j].Split('.');
                     var num = long.Parse(parts[0]);
-                    tempList.Add(new DataLine(num,lines[j]));
+                    tempList.Add(new DataLine(num, lines[j]));
                 }
 
                 tempList.Sort(new MyDataLineComparer());
-                
+
                 foreach (var dataLine in tempList)
                     outputFile.WriteLine(dataLine.Value);
-                
+
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
                 if (stt <= 1) continue;
                 st = DateTime.Now;
                 Console.Write($"\rProgress: {i} parts of {tempFilesList.Count}");
             }
-            
+
             outputFile.Close();
             // delete temp files
             foreach (var name in tempFilesList)
                 File.Delete(processingPath + name);
-            
+
             Console.WriteLine();
             Console.WriteLine($"Job is done for a {DateTime.Now.Subtract(starttime).Seconds} seconds.");
         }
