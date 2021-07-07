@@ -17,7 +17,8 @@ namespace BigTextFileSorting
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
         private const int bufferSize = 9000;
-        private const long linesCount = 350000000;
+        private const int testFileSizeMb = 100000;
+        private const int magicQoeficient = 3500;
 
         // internal class for sorting things
         private class DataLine
@@ -69,8 +70,8 @@ namespace BigTextFileSorting
             long bytesWritenBefore = 0;
             var st = DateTime.Now;
             var starttime = st;
-
-            const int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
+            long linesCount = testFileSizeMb * magicQoeficient;
+            int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
             Random rand = new Random();
             string buffer = "";
             while (linesWritten <= linesCount)
