@@ -16,7 +16,8 @@ namespace BigTextFileSorting
         private const string processingPath = "/Users/Aquateca/tmp/";
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
-        private const int bufferSize = 10000;
+        private const int bufferSize = 9000;
+        private const long linesCount = 10000000;
 
         // internal class for sorting things
         private class DataLine
@@ -53,7 +54,7 @@ namespace BigTextFileSorting
         }
 
         // Test file generator
-        private static void GenerateTestFile(long linesCount = 1000000)
+        private static void GenerateTestFile()
         {
             // get words for generation
             string[] words = File.ReadAllLines("coco.names");
@@ -69,8 +70,9 @@ namespace BigTextFileSorting
             var st = DateTime.Now;
             var starttime = st;
 
-            int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
+            const int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
             Random rand = new Random();
+            string buffer = "";
             while (linesWritten < linesCount)
             {
                 // generate random line
@@ -85,14 +87,22 @@ namespace BigTextFileSorting
                 var str2 = words[rand.Next(WordsCount)];
                 var str3 = words[rand.Next(WordsCount)];
 
-                var line =
-                    $"{rand.Next(numberTrashhold)}. {str1} {str2} {str3}";
+                var line = $"{rand.Next(numberTrashhold)}. {str1} {str2} {str3}";
 
-                // write line to file
-                file.WriteLine(line);
+                // write line to file through buffer
+                if (buffer.Length == 0)
+                    buffer += line;
+                else
+                    buffer += "\n" + line;
+
+                if (buffer.Length > bufferSize)
+                {
+                    file.Write(buffer);
+                    buffer = "";
+                }
 
                 // calculate statistics
-                bytesWriten += line.Length;
+                bytesWriten += line.Length + 1;
                 linesWritten++;
 
                 // show statistic once per second
@@ -100,28 +110,35 @@ namespace BigTextFileSorting
                 if (stt <= 1) continue;
                 st = DateTime.Now;
                 Console.Write(
-                    $"\r Progress: {(long) bytesWriten / 1000000} Mb, {(bytesWriten - bytesWritenBefore) / 1000000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
+                    $"\r Progress: {(long) bytesWriten / 100000} Mb, {(bytesWriten - bytesWritenBefore) / 100000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
                 bytesWritenBefore = bytesWriten;
             }
+
+            // flush buffer
+            if (buffer.Length != 0)
+                file.Write(buffer);
 
             file.Close();
             Console.WriteLine();
             Console.WriteLine(
-                $"Job is done. Wrote {linesWritten} lines, {bytesWriten / 100000} Mb, for a {DateTime.Now.Subtract(starttime).Seconds} seconds");
+                $"Job is done. Wrote {linesWritten} lines, {bytesWriten / 100000} Mb, for a {DateTime.Now.Subtract(starttime).TotalSeconds} seconds");
         }
 
         // Test file sorting procedure
         private static void SortFile()
         {
             // open test file
-            System.Console.WriteLine("Stage 1 - preprocessing base file...");
+            System.Console.WriteLine("Stage 1 - preprocessing source file...");
+            FileInfo fi = new FileInfo(workPath + testFileName);
+            long fileSize = fi.Length;
             var file = new StreamReader(workPath + testFileName);
-
+           
             // vars for statistic
             var st = DateTime.Now;
             var starttime = DateTime.Now;
             long linesCount = 0;
             long linesCountBefore = 0;
+            long byteRead = 0;
 
             // preprocessing sorting dictionary
             var keywords = new Dictionary<string, string>();
@@ -134,6 +151,7 @@ namespace BigTextFileSorting
                     throw new Exception("Error during processing the file - line is null or empty!");
 
                 linesCount++;
+                byteRead += line.Length;
                 // split the line to number and string
                 var parts = line.Split('.');
                 parts[1] = parts[1].Trim(' ');
@@ -143,7 +161,7 @@ namespace BigTextFileSorting
                 if (keywords.ContainsKey(keyword))
                 {
                     // using dictionary's value as a buffer
-                    keywords[keyword] += line + "\n";
+                    keywords[keyword] += "\n" + line;
                     if (keywords[keyword].Length > bufferSize)
                     {
                         using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
@@ -153,13 +171,13 @@ namespace BigTextFileSorting
                     }
                 }
                 else
-                    keywords.Add(keyword, line + "\n");
+                    keywords.Add(keyword, line);
 
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
                 if (stt <= 1) continue;
                 st = DateTime.Now;
-                Console.Write($"\rProgress: {linesCount} lines, {linesCount - linesCountBefore} lines/s.");
+                Console.Write($"\rProgress: {linesCount} lines, {linesCount - linesCountBefore} lines/s -> {(int)(((float)byteRead/fileSize) * 100)}%");
                 linesCountBefore = linesCount;
             }
 
@@ -178,7 +196,7 @@ namespace BigTextFileSorting
             System.Console.WriteLine("Stage 2 - sorting temp files...");
 
             // sorting dictionary
-            var tempFilesList = new List<string>(keywords.OrderBy(k => k.Key).Select(x=>x.Key));
+            var tempFilesList = new List<string>(keywords.OrderBy(k => k.Key).Select(x => x.Key));
             using var outputFile = new StreamWriter(workPath + resultFileName);
 
             // sorting every temp file
@@ -198,7 +216,7 @@ namespace BigTextFileSorting
                 tempList.Sort(new MyDataLineComparer());
 
                 foreach (var dataLine in tempList)
-                    outputFile.WriteLine(dataLine.Value);
+                  outputFile.WriteLine(dataLine.Value);
 
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
@@ -206,6 +224,7 @@ namespace BigTextFileSorting
                 st = DateTime.Now;
                 Console.Write($"\rProgress: {i} parts of {tempFilesList.Count}");
             }
+           
 
             outputFile.Close();
             // delete temp files
@@ -213,15 +232,12 @@ namespace BigTextFileSorting
                 File.Delete(processingPath + name);
 
             Console.WriteLine();
-            Console.WriteLine($"Job is done for a {DateTime.Now.Subtract(starttime).Seconds} seconds.");
+            Console.WriteLine($"Job is done for a {DateTime.Now.Subtract(starttime).TotalSeconds} seconds.");
         }
 
         static void Main(string[] args)
         {
-            // lifehack for string working speedup
-            //CultureInfo.CurrentCulture = new CultureInfo("en-US");
-
-            System.Console.WriteLine("BigTextFileSorter v1.0");
+            System.Console.WriteLine("BigTextFileSorter v1.0.1");
             System.Console.WriteLine(
                 "Please enter \"1\" to generate test file, \"2\" to sort it, any other thing to quit.");
             string choise = System.Console.ReadLine();
