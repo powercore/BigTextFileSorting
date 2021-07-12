@@ -12,13 +12,14 @@ namespace BigTextFileSorting
 {
     internal static class Program
     {
-        private const string workPath = "/Users/Aquateca/";
-        private const string processingPath = "/Users/Aquateca/tmp/";
+        private const string workPath = "c:\\temp\\";
+        private const string processingPath = "c:\\temp\\tmp\\";
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
-        private const int bufferSize = 9000;
-        private const int testFileSizeMb = 1000;
-        private const int magicQoeficient = 35000;
+        private const int generatorBufferSize = 1000; // can be tunned for current system
+        private const int sorterBufferSize = 9000; // can be tunned for current system
+        private const int testFileSizeMb = 100;
+        private const int magicQoeficient = 32800;
 
         // internal class for sorting things
         private class DataLine
@@ -72,7 +73,7 @@ namespace BigTextFileSorting
             var starttime = st;
             long linesCount = testFileSizeMb * magicQoeficient;
             int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
-            Random rand = new Random();
+            Random rand = new();
             string buffer = "";
             while (linesWritten <= linesCount)
             {
@@ -96,8 +97,9 @@ namespace BigTextFileSorting
                 else
                     buffer += "\n" + line;
 
-                if (buffer.Length > bufferSize)
+                if (buffer.Length > generatorBufferSize)
                 {
+                    buffer += "\n";
                     file.Write(buffer);
                     buffer = "";
                 }
@@ -133,7 +135,10 @@ namespace BigTextFileSorting
             // open test file
             System.Console.WriteLine("Stage 1 - preprocessing source file...");
             string path = Path.Combine(workPath + testFileName);
-            FileInfo fi = new FileInfo(path);
+            FileInfo fi = new(path);
+            if (!Directory.Exists(processingPath))
+                Directory.CreateDirectory(processingPath);
+
             long fileSize = fi.Length;
             
             using var file = new StreamReader(path);
@@ -166,7 +171,7 @@ namespace BigTextFileSorting
                 {
                     // using dictionary's value as a buffer
                     keywords[keyword] += "\n" + line;
-                    if (keywords[keyword].Length > bufferSize)
+                    if (keywords[keyword].Length > sorterBufferSize)
                     {
                         using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
                         tempfile.Write(keywords[keyword]);
