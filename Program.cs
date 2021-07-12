@@ -17,8 +17,8 @@ namespace BigTextFileSorting
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
         private const int bufferSize = 9000;
-        private const int testFileSizeMb = 100000;
-        private const int magicQoeficient = 3500;
+        private const int testFileSizeMb = 1000;
+        private const int magicQoeficient = 35000;
 
         // internal class for sorting things
         private class DataLine
@@ -111,7 +111,7 @@ namespace BigTextFileSorting
                 if (stt <= 1) continue;
                 st = DateTime.Now;
                 Console.Write(
-                    $"\rProgress: {(long) bytesWriten / 100000} Mb, {(bytesWriten - bytesWritenBefore) / 100000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
+                    $"\rProgress: {(long) bytesWriten / 1000000} Mb, {(bytesWriten - bytesWritenBefore) / 1000000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
                 bytesWritenBefore = bytesWriten;
             }
 
@@ -121,10 +121,10 @@ namespace BigTextFileSorting
 
             file.Close();
             Console.WriteLine(
-                $"\rProgress: {(long) bytesWriten / 100000} Mb, {(bytesWriten - bytesWritenBefore) / 100000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
+                $"\rProgress: {(long) bytesWriten / 1000000} Mb, {(bytesWriten - bytesWritenBefore) / 1000000} Mb/s -> {(int) (((double) linesWritten / linesCount) * 100)}%");
 
             Console.WriteLine(
-                $"Job is done. Wrote {bytesWriten / 100000} Mb, for a {DateTime.Now.Subtract(starttime).TotalSeconds} seconds");
+                $"Job is done. Wrote {bytesWriten / 1000000} Mb, for a {DateTime.Now.Subtract(starttime).TotalSeconds} seconds");
         }
 
         // Test file sorting procedure
@@ -132,10 +132,11 @@ namespace BigTextFileSorting
         {
             // open test file
             System.Console.WriteLine("Stage 1 - preprocessing source file...");
-            FileInfo fi = new FileInfo(workPath + testFileName);
+            string path = Path.Combine(workPath + testFileName);
+            FileInfo fi = new FileInfo(path);
             long fileSize = fi.Length;
             
-            using var file = new StreamReader(workPath + testFileName);
+            using var file = new StreamReader(path);
            
             // vars for statistic
             var st = DateTime.Now;
