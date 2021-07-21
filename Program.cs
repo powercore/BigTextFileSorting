@@ -6,7 +6,6 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.ComTypes;
-using System.Text;
 using System.Threading.Tasks;
 
 namespace BigTextFileSorting
@@ -17,8 +16,8 @@ namespace BigTextFileSorting
         private const string processingPath = "/Users/Aquateca/tmp/";
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
-        private const int bufferSize = 1000;
-        private const int testFileSizeMb = 500;
+        private const int bufferSize = 9000;
+        private const int testFileSizeMb = 1000;
         private const int magicQoeficient = 35000;
 
         // internal class for sorting things
@@ -74,8 +73,7 @@ namespace BigTextFileSorting
             long linesCount = testFileSizeMb * magicQoeficient;
             int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
             Random rand = new Random();
-            var buffer = new StringBuilder();
-            var sbuilder = new StringBuilder();
+            string buffer = "";
             while (linesWritten <= linesCount)
             {
                 // generate random line
@@ -90,26 +88,18 @@ namespace BigTextFileSorting
                 var str2 = words[rand.Next(WordsCount)];
                 var str3 = words[rand.Next(WordsCount)];
 
-                sbuilder.Append(rand.Next(numberTrashhold) + ". " + str1);
-                if (str2.Length > 0)
-                    sbuilder.Append(" " + str2);
-                if (str3.Length > 0)
-                    sbuilder.Append(" " + str3);
-                    
-                var line = sbuilder.ToString();
-                sbuilder.Clear();
+                var line = $"{rand.Next(numberTrashhold)}. {str1} {str2} {str3}";
 
                 // write line to file through buffer
                 if (buffer.Length == 0)
-                    buffer.Append(line);
+                    buffer += line;
                 else
-                    buffer.Append('\n' + line);
+                    buffer += "\n" + line;
 
                 if (buffer.Length > bufferSize)
                 {
-                    buffer.Append('\n');
-                    file.Write(buffer.ToString());
-                    buffer.Clear();
+                    file.Write(buffer);
+                    buffer = "";
                 }
 
                 // calculate statistics
@@ -127,7 +117,7 @@ namespace BigTextFileSorting
 
             // flush buffer
             if (buffer.Length != 0)
-                file.Write(buffer.ToString());
+                file.Write(buffer);
 
             file.Close();
             Console.WriteLine(
