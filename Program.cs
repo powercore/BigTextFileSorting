@@ -6,6 +6,7 @@ using System.Linq;
 using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices.ComTypes;
+using System.Text;
 using System.Threading.Tasks;
 
 namespace BigTextFileSorting
@@ -16,9 +17,10 @@ namespace BigTextFileSorting
         private const string processingPath = "/Users/Aquateca/tmp/";
         private const string testFileName = "testfile.txt";
         private const string resultFileName = "resultfile.txt";
-        private const int bufferSize = 9000;
+        private const int generatorBufferSize = 1000; // can be tunned for current system
+        private const int sorterBufferSize = 9000; // can be tunned for current system
         private const int testFileSizeMb = 1000;
-        private const int magicQoeficient = 35000;
+        private const int magicQoeficient = 34000;
 
         // internal class for sorting things
         private class DataLine
@@ -72,8 +74,9 @@ namespace BigTextFileSorting
             var starttime = st;
             long linesCount = testFileSizeMb * magicQoeficient;
             int numberTrashhold = (linesCount > int.MaxValue) ? int.MaxValue : (int) linesCount;
-            Random rand = new Random();
-            string buffer = "";
+            Random rand = new();
+            var buffer = new StringBuilder();
+            var sBuilder = new StringBuilder();
             while (linesWritten <= linesCount)
             {
                 // generate random line
@@ -82,29 +85,36 @@ namespace BigTextFileSorting
                 while (str1.Length == 0)
                     str1 = words[rand.Next(WordsCount)];
 
-                // make first word with start from capital letter
-                str1 = str1.First().ToString().ToUpper() + str1[1..];
-
+                // make first word starts from capital letter
+                str1 = char.ToUpper(str1[0]) + str1[1..];
+                
                 var str2 = words[rand.Next(WordsCount)];
                 var str3 = words[rand.Next(WordsCount)];
 
-                var line = $"{rand.Next(numberTrashhold)}. {str1} {str2} {str3}";
-
+                sBuilder.Append(rand.Next(numberTrashhold) + ". " + str1);
+                if (str2.Length > 0)
+                    sBuilder.Append(' ' + str2);
+                if (str3.Length > 0)
+                    sBuilder.Append(' ' + str3);
+                
                 // write line to file through buffer
                 if (buffer.Length == 0)
-                    buffer += line;
+                    buffer.Append(sBuilder);
                 else
-                    buffer += "\n" + line;
+                    buffer.Append('\n' + sBuilder.ToString());
 
-                if (buffer.Length > bufferSize)
+                
+                if (buffer.Length > generatorBufferSize)
                 {
-                    file.Write(buffer);
-                    buffer = "";
+                    file.Write(buffer.Append('\n'));
+                    buffer.Clear();
                 }
-
+                
                 // calculate statistics
-                bytesWriten += line.Length + 1;
+                bytesWriten += sBuilder.Length + 1;
                 linesWritten++;
+                
+                sBuilder.Clear();
 
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
@@ -133,7 +143,10 @@ namespace BigTextFileSorting
             // open test file
             System.Console.WriteLine("Stage 1 - preprocessing source file...");
             string path = Path.Combine(workPath + testFileName);
-            FileInfo fi = new FileInfo(path);
+            FileInfo fi = new(path);
+            if (!Directory.Exists(processingPath))
+                Directory.CreateDirectory(processingPath);
+
             long fileSize = fi.Length;
             
             using var file = new StreamReader(path);
@@ -146,7 +159,7 @@ namespace BigTextFileSorting
             long byteRead = 0;
 
             // preprocessing sorting dictionary
-            var keywords = new Dictionary<string, string>();
+            var keywords = new Dictionary<string, StringBuilder>();
 
             while (!file.EndOfStream)
             {
@@ -165,17 +178,17 @@ namespace BigTextFileSorting
                 if (keywords.ContainsKey(keyword))
                 {
                     // using dictionary's value as a buffer
-                    keywords[keyword] += "\n" + line;
-                    if (keywords[keyword].Length > bufferSize)
+                    keywords[keyword].Append('\n' + line);
+                    if (keywords[keyword].Length > sorterBufferSize)
                     {
-                        using var tempfile = new StreamWriter(processingPath + $"{keyword}", true);
-                        tempfile.Write(keywords[keyword]);
-                        keywords[keyword] = "";
+                        using var tempfile = new StreamWriter(processingPath + keyword, true);
+                        tempfile.Write(keywords[keyword].ToString());
+                        keywords[keyword].Clear();
                         tempfile.Close();
                     }
                 }
                 else
-                    keywords.Add(keyword, line);
+                    keywords.Add(keyword, new StringBuilder(line));
 
                 // show statistic once per second
                 var stt = DateTime.Now.Subtract(st).Seconds;
@@ -190,7 +203,7 @@ namespace BigTextFileSorting
             {
                 if (value.Length <= 0) continue;
                 using var tempfile = new StreamWriter(processingPath + $"{key}", true);
-                tempfile.Write(value);
+                tempfile.Write(value.ToString());
                 tempfile.Close();
             }
 
